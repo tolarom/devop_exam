@@ -19,7 +19,7 @@ services:
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: "Hello@123"
-      MYSQL_DATABASE: "rom_tola-db"
+      MYSQL_DATABASE: "ROM_Tola-db"
     ports:
       - "3307:3306"
     healthcheck:
