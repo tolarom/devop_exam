@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: terrain-rental-pod
+  labels:
+    app: terrain-rental
+spec:
+  containers:
+    - name: web
+      image: tolarom/terrain-web:latest
+      ports:
+        - containerPort: 80
+        - containerPort: 8080
+        - containerPort: 22
+    - name: db
+      image: mysql:8.0
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "Hello@123"
+        - name: MYSQL_DATABASE
+          value: "rom_tola-db"
+      ports:
+        - containerPort: 3306
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: terrain-rental-service
+spec:
+  selector:
+    app: terrain-rental
+  type: NodePort
+  ports:
+    - name: web
+      port: 8080
+      targetPort: 80
+    - name: ssh
+      port: 2222
+      targetPort: 22

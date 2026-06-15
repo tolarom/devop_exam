@@ -1,0 +1,11 @@
+mysql: [Warning] Using a password on the command line interface can be insecure.
++-----------------------+
+| Tables_in_rom_tola-db |
++-----------------------+
+| bookings              |
+| favorites             |
+| payments              |
+| reviews               |
+| terrain_images        |
+| terrains              |
++-----------------------+

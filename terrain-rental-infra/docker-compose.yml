@@ -1,0 +1,35 @@
+services:
+  web:
+    build: ./web
+    container_name: terrain-web
+    ports:
+      - "8080:80"   # website (nginx -> springboot on 8080 internally)
+      - "2222:22"   # SSH (mapped to 2222 on host to avoid clashing with host's own sshd)
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../src/main/resources/application.properties:/app/application.properties
+    networks:
+      - terrain-net
+
+  db:
+    image: mysql:8.0
+    container_name: terrain-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: "Hello@123"
+      MYSQL_DATABASE: "rom_tola-db"
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pHello@123"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - terrain-net
+
+networks:
+  terrain-net:
+    driver: bridge
