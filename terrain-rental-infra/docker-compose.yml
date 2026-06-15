@@ -13,6 +13,20 @@ services:
     networks:
       - terrain-net
 
+  web_load_balancer:
+    build: ./web
+    container_name: terrain-web-lb
+    ports:
+      - "8090:80"   # load balancer website (nginx -> springboot on 8080 internally)
+      - "2223:22"   # load balancer SSH (host port 22 is usually already used)
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../src/main/resources/application.properties:/app/application.properties
+    networks:
+      - terrain-net
+
   db:
     image: mysql:8.0
     container_name: terrain-db
@@ -27,6 +41,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - terrain-net
+
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    container_name: terrain-phpmyadmin
+    restart: always
+    ports:
+      - "8085:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - terrain-net
 
