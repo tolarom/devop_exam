@@ -1,0 +1,149 @@
+---
+- name: Deploy Spring Boot app through nginx web container
+  hosts: CHOICE_A
+  gather_facts: false
+  become: true
+
+  vars:
+    app_path: /app
+    git_branch: main
+    java_home: /opt/java/openjdk
+
+    prod_properties_file: /app/application.properties
+    test_sqlite_file: /tmp/terrain-rental-test.sqlite
+
+    mysql_host: db
+    mysql_port: 3306
+    mysql_database: ROM_Tola-db
+    mysql_user: root
+    mysql_password: Hello@123
+
+    backup_dir: /app/backups
+    backup_file: "{{ backup_dir }}/{{ mysql_database }}-{{ lookup('pipe', 'date +%Y%m%dT%H%M%S') }}.sql"
+
+  tasks:
+    - name: Check nginx is installed
+      ansible.builtin.command:
+        cmd: nginx -v
+      register: nginx_version
+      changed_when: false
+
+    - name: Check nginx service is running
+      ansible.builtin.command:
+        cmd: service nginx status
+      register: nginx_status
+      changed_when: false
+
+    - name: Check application directory is a Git checkout
+      ansible.builtin.stat:
+        path: "{{ app_path }}/.git"
+      register: app_git_dir
+
+    - name: Fail when app_path is not a Git checkout
+      ansible.builtin.fail:
+        msg: "{{ app_path }} is not a Git checkout on {{ inventory_hostname }}."
+      when: not app_git_dir.stat.exists
+
+    - name: Check for local changes before pulling
+      ansible.builtin.command:
+        cmd: git status --porcelain --untracked-files=no -- ':!pom.xml'
+        chdir: "{{ app_path }}"
+      register: git_status
+      changed_when: false
+
+    - name: Stop when local changes would block a safe pull
+      ansible.builtin.fail:
+        msg: |
+          Local changes exist in {{ app_path }} on {{ inventory_hostname }}.
+          Commit, stash, or remove them before deploying:
+          {{ git_status.stdout }}
+      when: git_status.stdout | length > 0
+
+    - name: Pull latest code
+      ansible.builtin.command:
+        cmd: git pull --ff-only origin {{ git_branch }}
+        chdir: "{{ app_path }}"
+      register: git_pull
+      changed_when: "'Already up to date.' not in git_pull.stdout"
+
+    - name: Copy local Maven config with SQLite test dependency
+      ansible.builtin.copy:
+        src: ../pom.xml
+        dest: "{{ app_path }}/pom.xml"
+        mode: "0644"
+
+    - name: Read production Spring properties
+      ansible.builtin.slurp:
+        src: "{{ prod_properties_file }}"
+      register: prod_properties
+
+    - name: Ensure production database is MySQL
+      ansible.builtin.assert:
+        that:
+          - "'spring.datasource.url=jdbc:mysql://' in (prod_properties.content | b64decode)"
+        fail_msg: "Production properties must use a MySQL JDBC URL."
+        success_msg: "Production properties use MySQL."
+
+    - name: Ensure MySQL backup client is installed
+      ansible.builtin.apt:
+        name: default-mysql-client
+        state: present
+        update_cache: true
+
+    - name: Create empty SQLite file for tests
+      ansible.builtin.file:
+        path: "{{ test_sqlite_file }}"
+        state: touch
+        mode: "0664"
+
+    - name: Run tests against SQLite
+      ansible.builtin.command:
+        cmd: >
+          mvn clean test
+          -Dspring.datasource.url=jdbc:sqlite:{{ test_sqlite_file }}
+          -Dspring.datasource.driver-class-name=org.sqlite.JDBC
+          -Dspring.jpa.database-platform=org.hibernate.community.dialect.SQLiteDialect
+          -Dspring.jpa.hibernate.ddl-auto=create-drop
+        chdir: "{{ app_path }}"
+      environment:
+        JAVA_HOME: "{{ java_home }}"
+        PATH: "{{ java_home }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+    - name: Build Spring Boot application
+      ansible.builtin.command:
+        cmd: mvn clean package -DskipTests
+        chdir: "{{ app_path }}"
+      environment:
+        JAVA_HOME: "{{ java_home }}"
+        PATH: "{{ java_home }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+    - name: Create database backup directory
+      ansible.builtin.file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: "0750"
+
+    - name: Backup MySQL database
+      ansible.builtin.shell: >
+        mysqldump
+        --host={{ mysql_host | quote }}
+        --port={{ mysql_port | quote }}
+        --user={{ mysql_user | quote }}
+        --single-transaction
+        --routines
+        --triggers
+        {{ mysql_database | quote }}
+        > {{ backup_file | quote }}
+      args:
+        chdir: "{{ app_path }}"
+      environment:
+        MYSQL_PWD: "{{ mysql_password }}"
+      no_log: true
+
+    - name: Show deployment result
+      ansible.builtin.debug:
+        msg:
+          - "nginx checked: {{ nginx_version.stderr | default(nginx_version.stdout) }}"
+          - "Pulled branch {{ git_branch }} in {{ app_path }}."
+          - "Built Spring Boot jar with Maven."
+          - "MySQL backup created at {{ backup_file }}."
