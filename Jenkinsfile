@@ -46,11 +46,11 @@ pipeline {
         }
     }
 
-    post {
-        failure {
-            emailext(
-                subject: "Build failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """\
+post {
+    failure {
+        emailext(
+            subject: "Build failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: """\
 Build failed for ${env.JOB_NAME} #${env.BUILD_NUMBER}.
 
 Project: ${env.JOB_NAME}
@@ -59,13 +59,12 @@ Branch: ${env.BRANCH_NAME ?: 'main'}
 
 Please check the Jenkins console output for details.
 """,
-                recipientProviders: [developers(), culprits()],
-                cc: 'srengty@gmail.com','tolarom27@gmail.com'
-            )
-        }
+            recipientProviders: [developers(), culprits()],
+            cc: 'srengty@gmail.com,tolarom27@gmail.com'
+        )
+    }
 
-        success {
-            echo 'Build, test, and Ansible deployment completed successfully.'
-        }
+    success {
+        echo 'Build, test, and Ansible deployment completed successfully.'
     }
 }
