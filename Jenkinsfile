@@ -60,7 +60,7 @@ Branch: ${env.BRANCH_NAME ?: 'main'}
 Please check the Jenkins console output for details.
 """,
                 recipientProviders: [developers(), culprits()],
-                cc: 'srengty@gmail.com'
+                cc: 'srengty@gmail.com','tolarom27@gmail.com'
             )
         }
 
