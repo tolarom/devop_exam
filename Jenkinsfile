@@ -14,6 +14,7 @@ pipeline {
         ANSIBLE_LOCAL_TEMP = "${WORKSPACE}/.ansible-tmp"
         ANSIBLE_REMOTE_TEMP = "/tmp/ansible"
         TEST_SQLITE_DB = "${WORKSPACE}/terrain-rental-test.sqlite"
+        MAVEN_OPTS = "-Dhttps.protocols=TLSv1.2 -Dmaven.wagon.http.retryHandler.count=3 -Dmaven.wagon.httpconnectionManager.ttlSeconds=25"
     }
 
     stages {
@@ -25,14 +26,16 @@ pipeline {
 
         stage('Build and Test') {
             steps {
-                sh '''
-                    chmod +x mvnw
-                    ./mvnw clean test \
-                        -Dspring.datasource.url=jdbc:sqlite:${TEST_SQLITE_DB} \
-                        -Dspring.datasource.driver-class-name=org.sqlite.JDBC \
-                        -Dspring.jpa.database-platform=org.hibernate.community.dialect.SQLiteDialect \
-                        -Dspring.jpa.hibernate.ddl-auto=create-drop
-                '''
+                retry(3) {
+                    sh '''
+                        chmod +x mvnw
+                        ./mvnw clean test \
+                            -Dspring.datasource.url=jdbc:sqlite:${TEST_SQLITE_DB} \
+                            -Dspring.datasource.driver-class-name=org.sqlite.JDBC \
+                            -Dspring.jpa.database-platform=org.hibernate.community.dialect.SQLiteDialect \
+                            -Dspring.jpa.hibernate.ddl-auto=create-drop
+                    '''
+                }
             }
         }
 
